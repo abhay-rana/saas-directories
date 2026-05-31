@@ -1,9 +1,9 @@
 import DirectoriesApp from "@/components/DirectoriesApp";
 import ThemeToggle from "@/components/ThemeToggle";
-import { saasDirectories, launchSites } from "@/lib/directories";
+import { allDirectories, saasDirectories, launchSites } from "@/lib/directories";
 
 export default function Home() {
-  const totalCount = saasDirectories.length + launchSites.length;
+  const totalCount = allDirectories.length;
 
   return (
     <>
@@ -76,9 +76,8 @@ export default function Home() {
           >
             Every indie hacker and SaaS founder goes through the same grind: finding
             where to submit their product for backlinks, traffic, and early users. This
-            list has {saasDirectories.length} SaaS directories and{" "}
-            {launchSites.length} launch sites — curated, sorted by Domain Authority, and
-            kept up to date by the community.
+            list has {totalCount} directories and launch sites — curated, sorted by
+            Domain Authority, and kept up to date by the community.
           </p>
           <p
             style={{
@@ -113,10 +112,10 @@ export default function Home() {
           }}
         >
           {[
-            { label: "SaaS Directories", value: saasDirectories.length },
+            { label: "Total Sites", value: allDirectories.length },
+            { label: "DA 70+ Sites", value: allDirectories.filter((d) => d.da !== null && d.da >= 70).length },
+            { label: "Free Listings", value: allDirectories.filter((d) => d.type === "free").length },
             { label: "Launch Sites", value: launchSites.length },
-            { label: "DA 70+ Sites", value: saasDirectories.filter((d) => d.da !== null && d.da >= 70).length },
-            { label: "Free Listings", value: saasDirectories.filter((d) => d.type === "free").length + launchSites.filter((d) => d.type === "free").length },
           ].map((s) => (
             <div
               key={s.label}

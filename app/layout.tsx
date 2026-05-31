@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SaaS Directories — 280+ Places to Submit Your Product for Free Backlinks",
+  title: "SaaS Directories — 361 Places to Submit Your Product for Free Backlinks",
   description:
-    "A curated, community-maintained list of 280+ SaaS directories and 66 launch sites. Filter by DA, link type, and cost. Track your submission progress — no signup required.",
+    "A curated, community-maintained list of 361 directories and launch sites. Filter by DA, link type, and cost. Track your submission progress — no signup required.",
   keywords: [
     "saas directories",
     "submit saas product",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Abhay Rana", url: "https://abhayrana.com" }],
   openGraph: {
-    title: "SaaS Directories — 280+ Places to Submit Your Product",
+    title: "SaaS Directories — 361 Places to Submit Your Product",
     description:
       "Filter by DA, link type, and cost. Track your own submission progress in-browser. Community-maintained and open source.",
     url: "https://marketing.abhayrana.com",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SaaS Directories — 280+ Places to Submit Your Product",
+    title: "SaaS Directories — 361 Places to Submit Your Product",
     description:
       "Filter by DA, link type, and cost. Track your own submission progress in-browser. Community-maintained and open source.",
     creator: "@r4fken",

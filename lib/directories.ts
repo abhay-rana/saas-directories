@@ -1,4 +1,4 @@
-import { Directory, DirectoryType } from "./types";
+import { Directory, DirectoryType, DirectoryCategory } from "./types";
 
 // Extract parenthetical notes from names like "Product Hunt (the GOAT)"
 function parseName(raw: string): { name: string; notes: string | null } {
@@ -28,7 +28,7 @@ interface RawEntry {
   dofollow?: boolean;
 }
 
-function transform(entries: RawEntry[], prefix: string): Directory[] {
+function transform(entries: RawEntry[], prefix: string, category: DirectoryCategory): Directory[] {
   return entries.map((e) => {
     const { name, notes } = parseName(e.name);
     return {
@@ -37,10 +37,11 @@ function transform(entries: RawEntry[], prefix: string): Directory[] {
       name,
       url: e.url,
       da: e.da ?? null,
-      dr: e.da ?? null, // DR = DA as agreed
+      dr: e.da ?? null,
       type: inferType(e.name),
       dofollow: e.dofollow ?? true,
       notes,
+      category,
     };
   });
 }
@@ -413,5 +414,11 @@ const rawLaunchSites: RawEntry[] = [
   { num: 66, name: "LaunchScroll", url: "https://launchscroll.com", da: 45 },
 ];
 
-export const saasDirectories: Directory[] = transform(rawSaasDirectories, "saas");
-export const launchSites: Directory[] = transform(rawLaunchSites, "launch");
+export const allDirectories: Directory[] = [
+  ...transform(rawSaasDirectories, "saas", "directory"),
+  ...transform(rawLaunchSites, "launch", "launch"),
+];
+
+// kept for any code still referencing these
+export const saasDirectories = allDirectories.filter(d => d.category === "directory");
+export const launchSites = allDirectories.filter(d => d.category === "launch");

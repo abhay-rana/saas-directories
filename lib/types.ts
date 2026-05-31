@@ -1,5 +1,6 @@
 export type DirectoryType = "free" | "freemium" | "paid";
 export type SubmissionStatus = "todo" | "applied" | "listed" | "rejected";
+export type DirectoryCategory = "directory" | "launch";
 
 export interface Directory {
   id: string;
@@ -11,13 +12,13 @@ export interface Directory {
   type: DirectoryType;
   dofollow: boolean;
   notes: string | null;
+  category: DirectoryCategory;
 }
-
-export type TabKey = "saas" | "launch";
 
 export interface FilterState {
   search: string;
   minDa: number;
   type: DirectoryType | "all";
   status: SubmissionStatus | "all";
+  category: DirectoryCategory | "all";
 }

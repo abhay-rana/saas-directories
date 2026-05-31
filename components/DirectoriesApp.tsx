@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Directory, FilterState, SubmissionStatus, TabKey } from "@/lib/types";
-import { saasDirectories, launchSites } from "@/lib/directories";
+import { Directory, FilterState, SubmissionStatus } from "@/lib/types";
+import { allDirectories } from "@/lib/directories";
 
 const STATUS_OPTIONS: { value: SubmissionStatus; label: string }[] = [
   { value: "todo", label: "To Do" },
@@ -26,21 +26,26 @@ const DA_FILTERS = [
   { label: "20+", value: 20 },
 ];
 
-function useStatuses(prefix: string) {
+function useStatuses() {
   const [statuses, setStatuses] = useState<Record<string, SubmissionStatus>>({});
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(`dir-status-${prefix}`);
-      if (raw) setStatuses(JSON.parse(raw));
+      // migrate old per-tab keys into one unified key
+      const saas = JSON.parse(localStorage.getItem("dir-status-saas") || "{}");
+      const launch = JSON.parse(localStorage.getItem("dir-status-launch") || "{}");
+      const existing = JSON.parse(localStorage.getItem("dir-status") || "{}");
+      const merged = { ...saas, ...launch, ...existing };
+      setStatuses(merged);
+      localStorage.setItem("dir-status", JSON.stringify(merged));
     } catch {}
-  }, [prefix]);
+  }, []);
 
   function setStatus(id: string, value: SubmissionStatus) {
     setStatuses((prev) => {
       const updated = { ...prev, [id]: value };
       try {
-        localStorage.setItem(`dir-status-${prefix}`, JSON.stringify(updated));
+        localStorage.setItem("dir-status", JSON.stringify(updated));
       } catch {}
       return updated;
     });
@@ -109,14 +114,12 @@ function TypeBadge({ type }: { type: "free" | "freemium" | "paid" }) {
 
 function DirectoriesTable({
   data,
-  prefix,
   filterState,
 }: {
   data: Directory[];
-  prefix: string;
   filterState: FilterState;
 }) {
-  const { statuses, setStatus } = useStatuses(prefix);
+  const { statuses, setStatus } = useStatuses();
   const [daSort, setDaSort] = useState<"desc" | "asc">("desc");
 
   const filtered = useMemo(() => {
@@ -128,10 +131,12 @@ function DirectoriesTable({
         d.name.toLowerCase().includes(filterState.search.toLowerCase());
       const typeOk =
         filterState.type === "all" || d.type === filterState.type;
+      const categoryOk =
+        filterState.category === "all" || d.category === filterState.category;
       const currentStatus = statuses[d.id] ?? "todo";
       const statusOk =
         filterState.status === "all" || currentStatus === filterState.status;
-      return daOk && nameOk && typeOk && statusOk;
+      return daOk && nameOk && typeOk && categoryOk && statusOk;
     });
 
     return [...rows].sort((a, b) => {
@@ -192,7 +197,7 @@ function DirectoriesTable({
           </tr>
         </thead>
         <tbody>
-          {filtered.map((d) => {
+          {filtered.map((d, idx) => {
             const status = statuses[d.id] ?? "todo";
             return (
               <tr
@@ -216,7 +221,7 @@ function DirectoriesTable({
                     width: "40px",
                   }}
                 >
-                  {d.num}
+                  {idx + 1}
                 </td>
                 <td style={{ padding: "10px 12px", maxWidth: "280px" }}>
                   <span
@@ -298,21 +303,19 @@ function DirectoriesTable({
 }
 
 export default function DirectoriesApp() {
-  const [tab, setTab] = useState<TabKey>("saas");
   const [filters, setFilters] = useState<FilterState>({
     search: "",
     minDa: 0,
     type: "all",
     status: "all",
+    category: "all",
   });
-
-  const data = tab === "saas" ? saasDirectories : launchSites;
 
   function setFilter<K extends keyof FilterState>(key: K, value: FilterState[K]) {
     setFilters((f) => ({ ...f, [key]: value }));
   }
 
-  const btnStyle = (active: boolean): React.CSSProperties => ({
+  const btn = (active: boolean): React.CSSProperties => ({
     background: active ? "var(--accent)" : "var(--bg-card)",
     color: active ? "#fff" : "var(--text-secondary)",
     border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
@@ -324,177 +327,75 @@ export default function DirectoriesApp() {
     transition: "all 0.1s",
   });
 
+  function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+      <div>
+        <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
+          {label}
+        </label>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div>
-      {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: "8px",
-          marginBottom: "24px",
-          borderBottom: "1px solid var(--border)",
-          paddingBottom: "16px",
-        }}
-      >
-        <button
-          style={btnStyle(tab === "saas")}
-          onClick={() => setTab("saas")}
-        >
-          SaaS Directories ({saasDirectories.length})
-        </button>
-        <button
-          style={btnStyle(tab === "launch")}
-          onClick={() => setTab("launch")}
-        >
-          Launch Sites ({launchSites.length})
-        </button>
-      </div>
-
       {/* Filters */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "16px",
-          marginBottom: "20px",
-          alignItems: "flex-end",
-        }}
-      >
-        {/* Search */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "var(--text-secondary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "6px",
-            }}
-          >
-            Search
-          </label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "20px", alignItems: "flex-end" }}>
+
+        <FilterGroup label="Search">
           <input
             type="text"
             placeholder="Filter by name…"
             value={filters.search}
             onChange={(e) => setFilter("search", e.target.value)}
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              padding: "6px 10px",
-              color: "var(--text)",
-              fontSize: "13px",
-              width: "200px",
-              outline: "none",
-            }}
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "6px", padding: "6px 10px", color: "var(--text)", fontSize: "13px", width: "200px", outline: "none" }}
           />
-        </div>
+        </FilterGroup>
 
-        {/* Min DA */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "var(--text-secondary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "6px",
-            }}
-          >
-            Min DA
-          </label>
+        <FilterGroup label="Min DA">
           <div style={{ display: "flex", gap: "4px" }}>
             {DA_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                style={btnStyle(filters.minDa === f.value)}
-                onClick={() => setFilter("minDa", f.value)}
-              >
-                {f.label}
+              <button key={f.value} style={btn(filters.minDa === f.value)} onClick={() => setFilter("minDa", f.value)}>{f.label}</button>
+            ))}
+          </div>
+        </FilterGroup>
+
+        <FilterGroup label="Type">
+          <div style={{ display: "flex", gap: "4px" }}>
+            {(["all", "directory", "launch"] as const).map((c) => (
+              <button key={c} style={btn(filters.category === c)} onClick={() => setFilter("category", c)}>
+                {c === "all" ? "All" : c === "directory" ? "Directories" : "Launch Sites"}
               </button>
             ))}
           </div>
-        </div>
+        </FilterGroup>
 
-        {/* Type */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "var(--text-secondary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "6px",
-            }}
-          >
-            Cost
-          </label>
+        <FilterGroup label="Cost">
           <div style={{ display: "flex", gap: "4px" }}>
             {(["all", "free", "freemium", "paid"] as const).map((t) => (
-              <button
-                key={t}
-                style={btnStyle(filters.type === t)}
-                onClick={() => setFilter("type", t)}
-              >
+              <button key={t} style={btn(filters.type === t)} onClick={() => setFilter("type", t)}>
                 {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
             ))}
           </div>
-        </div>
+        </FilterGroup>
 
-        {/* Status */}
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "var(--text-secondary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "6px",
-            }}
-          >
-            My Status
-          </label>
+        <FilterGroup label="My Status">
           <div style={{ display: "flex", gap: "4px" }}>
-            {(["all", "todo", "applied", "listed", "rejected"] as const).map(
-              (s) => (
-                <button
-                  key={s}
-                  style={btnStyle(filters.status === s)}
-                  onClick={() => setFilter("status", s)}
-                >
-                  {s === "all" ? "All" : STATUS_LABELS[s as SubmissionStatus]}
-                </button>
-              )
-            )}
+            {(["all", "todo", "applied", "listed", "rejected"] as const).map((s) => (
+              <button key={s} style={btn(filters.status === s)} onClick={() => setFilter("status", s)}>
+                {s === "all" ? "All" : STATUS_LABELS[s as SubmissionStatus]}
+              </button>
+            ))}
           </div>
-        </div>
+        </FilterGroup>
+
       </div>
 
       {/* Table */}
-      <div
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          borderRadius: "10px",
-          overflow: "hidden",
-        }}
-      >
-        <DirectoriesTable
-          key={tab}
-          data={data}
-          prefix={tab}
-          filterState={filters}
-        />
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "10px", overflow: "hidden" }}>
+        <DirectoriesTable data={allDirectories} filterState={filters} />
       </div>
     </div>
   );
