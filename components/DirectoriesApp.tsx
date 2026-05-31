@@ -117,9 +117,10 @@ function DirectoriesTable({
   filterState: FilterState;
 }) {
   const { statuses, setStatus } = useStatuses(prefix);
+  const [daSort, setDaSort] = useState<"desc" | "asc">("desc");
 
   const filtered = useMemo(() => {
-    return data.filter((d) => {
+    const rows = data.filter((d) => {
       const daOk =
         filterState.minDa === 0 || (d.da !== null && d.da >= filterState.minDa);
       const nameOk =
@@ -132,7 +133,13 @@ function DirectoriesTable({
         filterState.status === "all" || currentStatus === filterState.status;
       return daOk && nameOk && typeOk && statusOk;
     });
-  }, [data, filterState, statuses]);
+
+    return [...rows].sort((a, b) => {
+      const av = a.da ?? -1;
+      const bv = b.da ?? -1;
+      return daSort === "desc" ? bv - av : av - bv;
+    });
+  }, [data, filterState, statuses, daSort]);
 
   const daColor = (da: number | null) => {
     if (da === null) return "var(--text-dim)";
@@ -165,24 +172,23 @@ function DirectoriesTable({
               textAlign: "left",
             }}
           >
-            {["#", "Name", "DA / DR", "Type", "Dofollow", "Your Status"].map(
-              (h) => (
-                <th
-                  key={h}
-                  style={{
-                    padding: "8px 12px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    color: "var(--text-secondary)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {h}
-                </th>
-              )
-            )}
+            {["#", "Name"].map((h) => (
+              <th key={h} style={{ padding: "8px 12px", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+                {h}
+              </th>
+            ))}
+            <th
+              onClick={() => setDaSort((s) => (s === "desc" ? "asc" : "desc"))}
+              style={{ padding: "8px 12px", fontSize: "11px", fontWeight: 600, color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }}
+              title="Click to sort by DA"
+            >
+              DA / DR {daSort === "desc" ? "↓" : "↑"}
+            </th>
+            {["Type", "Dofollow", "Your Status"].map((h) => (
+              <th key={h} style={{ padding: "8px 12px", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
