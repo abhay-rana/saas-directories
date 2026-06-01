@@ -2,6 +2,11 @@ export type DirectoryType = "free" | "freemium" | "paid";
 export type SubmissionStatus = "todo" | "applied" | "listed" | "rejected";
 export type DirectoryCategory = "directory" | "launch";
 
+export interface StatusEntry {
+  status: SubmissionStatus;
+  updatedAt: string; // ISO timestamp
+}
+
 export interface Directory {
   id: string;
   num: number;

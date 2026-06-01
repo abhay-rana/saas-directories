@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Directory, FilterState, SubmissionStatus } from "@/lib/types";
+import { Directory, FilterState, SubmissionStatus, StatusEntry } from "@/lib/types";
 import { allDirectories } from "@/lib/directories";
 
 const STATUS_OPTIONS: { value: SubmissionStatus; label: string }[] = [
@@ -27,23 +27,37 @@ const DA_FILTERS = [
 ];
 
 function useStatuses() {
-  const [statuses, setStatuses] = useState<Record<string, SubmissionStatus>>({});
+  const [statuses, setStatuses] = useState<Record<string, StatusEntry>>({});
 
   useEffect(() => {
     try {
-      // migrate old per-tab keys into one unified key
       const saas = JSON.parse(localStorage.getItem("dir-status-saas") || "{}");
       const launch = JSON.parse(localStorage.getItem("dir-status-launch") || "{}");
       const existing = JSON.parse(localStorage.getItem("dir-status") || "{}");
-      const merged = { ...saas, ...launch, ...existing };
-      setStatuses(merged);
-      localStorage.setItem("dir-status", JSON.stringify(merged));
+      const raw: Record<string, SubmissionStatus | StatusEntry> = { ...saas, ...launch, ...existing };
+
+      // migrate: old shape stored plain strings, new shape stores { status, updatedAt }
+      const now = new Date().toISOString();
+      const migrated: Record<string, StatusEntry> = {};
+      for (const [id, val] of Object.entries(raw)) {
+        if (typeof val === "string") {
+          migrated[id] = { status: val as SubmissionStatus, updatedAt: now };
+        } else {
+          migrated[id] = val as StatusEntry;
+        }
+      }
+
+      setStatuses(migrated);
+      localStorage.setItem("dir-status", JSON.stringify(migrated));
     } catch {}
   }, []);
 
   function setStatus(id: string, value: SubmissionStatus) {
     setStatuses((prev) => {
-      const updated = { ...prev, [id]: value };
+      const updated = {
+        ...prev,
+        [id]: { status: value, updatedAt: new Date().toISOString() },
+      };
       try {
         localStorage.setItem("dir-status", JSON.stringify(updated));
       } catch {}
@@ -52,6 +66,52 @@ function useStatuses() {
   }
 
   return { statuses, setStatus };
+}
+
+function exportCSV(statuses: Record<string, StatusEntry>) {
+  const escape = (v: string) => {
+    if (v.includes(",") || v.includes('"') || v.includes("\n")) {
+      return '"' + v.replace(/"/g, '""') + '"';
+    }
+    return v;
+  };
+
+  const acted = allDirectories.filter((d) => {
+    const entry = statuses[d.id];
+    return entry && entry.status !== "todo";
+  });
+
+  const headers = ["name", "url", "category", "da", "dr", "type", "dofollow", "status", "date_updated"];
+  const rows = acted.map((d) => {
+    const entry = statuses[d.id];
+    return [
+      escape(d.name),
+      escape(d.url),
+      d.category,
+      d.da ?? "",
+      d.dr ?? "",
+      d.type,
+      d.dofollow ? "yes" : "no",
+      entry.status,
+      entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : "",
+    ].join(",");
+  });
+
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, "0");
+  const month = now.toLocaleString("en-US", { month: "long" });
+  const year = now.getFullYear();
+  a.download = `saas-directories-backup-${day}-${month}-${year}.csv`;
+  a.href = url;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function StatusDropdown({
@@ -115,11 +175,14 @@ function TypeBadge({ type }: { type: "free" | "freemium" | "paid" }) {
 function DirectoriesTable({
   data,
   filterState,
+  statuses,
+  setStatus,
 }: {
   data: Directory[];
   filterState: FilterState;
+  statuses: Record<string, StatusEntry>;
+  setStatus: (id: string, value: SubmissionStatus) => void;
 }) {
-  const { statuses, setStatus } = useStatuses();
   const [daSort, setDaSort] = useState<"desc" | "asc">("desc");
 
   const filtered = useMemo(() => {
@@ -133,7 +196,7 @@ function DirectoriesTable({
         filterState.type === "all" || d.type === filterState.type;
       const categoryOk =
         filterState.category === "all" || d.category === filterState.category;
-      const currentStatus = statuses[d.id] ?? "todo";
+      const currentStatus = statuses[d.id]?.status ?? "todo";
       const statusOk =
         filterState.status === "all" || currentStatus === filterState.status;
       return daOk && nameOk && typeOk && categoryOk && statusOk;
@@ -198,7 +261,7 @@ function DirectoriesTable({
         </thead>
         <tbody>
           {filtered.map((d, idx) => {
-            const status = statuses[d.id] ?? "todo";
+            const status = statuses[d.id]?.status ?? "todo";
             return (
               <tr
                 key={d.id}
@@ -303,6 +366,8 @@ function DirectoriesTable({
 }
 
 export default function DirectoriesApp() {
+  const { statuses, setStatus } = useStatuses();
+
   const [filters, setFilters] = useState<FilterState>({
     search: "",
     minDa: 0,
@@ -310,6 +375,19 @@ export default function DirectoriesApp() {
     status: "all",
     category: "all",
   });
+
+  const trackedCount = useMemo(
+    () => Object.values(statuses).filter((e) => e.status !== "todo").length,
+    [statuses]
+  );
+
+  const appliedCount = useMemo(
+    () => Object.values(statuses).filter((e) => e.status === "applied" || e.status === "listed").length,
+    [statuses]
+  );
+
+  const totalCount = allDirectories.length;
+  const progressPct = totalCount > 0 ? (appliedCount / totalCount) * 100 : 0;
 
   function setFilter<K extends keyof FilterState>(key: K, value: FilterState[K]) {
     setFilters((f) => ({ ...f, [key]: value }));
@@ -340,6 +418,29 @@ export default function DirectoriesApp() {
 
   return (
     <div>
+      {/* Export bar */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+        <button
+          onClick={() => exportCSV(statuses)}
+          disabled={trackedCount === 0}
+          title={trackedCount === 0 ? "No entries tracked yet" : `Export ${trackedCount} tracked entries`}
+          style={{
+            background: trackedCount === 0 ? "var(--bg-card)" : "var(--accent)",
+            color: trackedCount === 0 ? "var(--text-dim)" : "#fff",
+            border: `1px solid ${trackedCount === 0 ? "var(--border)" : "var(--accent)"}`,
+            borderRadius: "6px",
+            padding: "6px 14px",
+            fontSize: "13px",
+            fontWeight: 600,
+            cursor: trackedCount === 0 ? "not-allowed" : "pointer",
+            opacity: trackedCount === 0 ? 0.5 : 1,
+            transition: "all 0.1s",
+          }}
+        >
+          ↓ Export CSV{trackedCount > 0 ? ` (${trackedCount})` : ""}
+        </button>
+      </div>
+
       {/* Filters */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "20px", alignItems: "flex-end" }}>
 
@@ -393,9 +494,41 @@ export default function DirectoriesApp() {
 
       </div>
 
+      {/* Progress bar */}
+      <div style={{ marginBottom: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+          <span style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: 500 }}>
+            You&apos;ve applied to{" "}
+            <span style={{ color: "var(--text)", fontWeight: 700 }}>{appliedCount}</span>
+            {" "}of{" "}
+            <span style={{ color: "var(--text)", fontWeight: 700 }}>{totalCount}</span>
+            {" "}directories
+          </span>
+          <span style={{ fontSize: "12px", color: "var(--text-dim)", fontVariantNumeric: "tabular-nums" }}>
+            {progressPct.toFixed(1)}%
+          </span>
+        </div>
+        <div style={{ height: "6px", background: "var(--border)", borderRadius: "99px", overflow: "hidden" }}>
+          <div
+            style={{
+              height: "100%",
+              width: progressPct + "%",
+              background: "var(--accent)",
+              borderRadius: "99px",
+              transition: "width 0.3s ease",
+            }}
+          />
+        </div>
+      </div>
+
       {/* Table */}
       <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "10px", overflow: "hidden" }}>
-        <DirectoriesTable data={allDirectories} filterState={filters} />
+        <DirectoriesTable
+          data={allDirectories}
+          filterState={filters}
+          statuses={statuses}
+          setStatus={setStatus}
+        />
       </div>
     </div>
   );

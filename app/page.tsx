@@ -1,5 +1,6 @@
 import DirectoriesApp from "@/components/DirectoriesApp";
 import ThemeToggle from "@/components/ThemeToggle";
+import FeedbackModal from "@/components/FeedbackModal";
 import { allDirectories, saasDirectories, launchSites } from "@/lib/directories";
 
 export default function Home() {
@@ -46,6 +47,7 @@ export default function Home() {
             >
               ★ Contribute on GitHub
             </a>
+            <FeedbackModal headerButton />
             <ThemeToggle />
           </div>
         </div>
@@ -252,6 +254,9 @@ export default function Home() {
           </p>
         </section>
       </main>
+
+      {/* FAB + modal */}
+      <FeedbackModal />
     </>
   );
 }
