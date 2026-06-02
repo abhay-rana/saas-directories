@@ -1,6 +1,6 @@
 export type DirectoryType = "free" | "freemium" | "paid";
 export type SubmissionStatus = "todo" | "applied" | "listed" | "rejected";
-export type DirectoryCategory = "directory" | "launch";
+export type DirectoryCategory = "directory" | "launch" | "reddit";
 
 export interface StatusEntry {
   status: SubmissionStatus;
@@ -18,6 +18,7 @@ export interface Directory {
   dofollow: boolean;
   notes: string | null;
   category: DirectoryCategory;
+  subcategory?: string;
 }
 
 export interface FilterState {
@@ -26,4 +27,5 @@ export interface FilterState {
   type: DirectoryType | "all";
   status: SubmissionStatus | "all";
   category: DirectoryCategory | "all";
+  redditSubcategory: string;
 }

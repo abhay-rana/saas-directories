@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Directory, FilterState, SubmissionStatus, StatusEntry } from "@/lib/types";
-import { allDirectories } from "@/lib/directories";
+import { allDirectories, redditCommunities } from "@/lib/directories";
 
 const STATUS_OPTIONS: { value: SubmissionStatus; label: string }[] = [
   { value: "todo", label: "To Do" },
@@ -24,6 +24,18 @@ const DA_FILTERS = [
   { label: "60+", value: 60 },
   { label: "40+", value: 40 },
   { label: "20+", value: 20 },
+];
+
+const REDDIT_SUBCATEGORIES = [
+  "General Marketing",
+  "SEO & Growth",
+  "Social Media Marketing",
+  "Paid Ads",
+  "Copywriting / Content",
+  "SaaS / Startup",
+  "E-commerce & Product",
+  "Psychology / Consumer Behaviour",
+  "Niche / Hidden Gems",
 ];
 
 function useStatuses() {
@@ -365,6 +377,72 @@ function DirectoriesTable({
   );
 }
 
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function RedditTable({ data }: { data: Directory[] }) {
+  if (data.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: "48px 0", color: "var(--text-dim)" }}>
+        No subreddits match your filters.
+      </div>
+    );
+  }
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left" }}>
+            {["#", "Subreddit", "Category"].map((h) => (
+              <th key={h} style={{ padding: "8px 12px", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((d, idx) => (
+            <tr
+              key={d.id}
+              style={{ borderBottom: "1px solid var(--border)", transition: "background 0.1s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <td style={{ padding: "10px 12px", color: "var(--text-dim)", fontSize: "12px", width: "40px" }}>
+                {idx + 1}
+              </td>
+              <td style={{ padding: "10px 12px" }}>
+                <a
+                  href={d.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 500 }}
+                >
+                  {d.name}
+                </a>
+              </td>
+              <td style={{ padding: "10px 12px", color: "var(--text-secondary)", fontSize: "13px" }}>
+                {d.subcategory ?? "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p style={{ padding: "12px", color: "var(--text-dim)", fontSize: "12px" }}>
+        Showing {data.length} of {redditCommunities.length} subreddits
+      </p>
+    </div>
+  );
+}
+
 export default function DirectoriesApp() {
   const { statuses, setStatus } = useStatuses();
 
@@ -374,7 +452,16 @@ export default function DirectoriesApp() {
     type: "all",
     status: "all",
     category: "all",
+    redditSubcategory: "all",
   });
+
+  const filteredReddit = useMemo(() => {
+    return redditCommunities.filter((d) => {
+      const nameOk = !filters.search || d.name.toLowerCase().includes(filters.search.toLowerCase());
+      const subcatOk = filters.redditSubcategory === "all" || d.subcategory === filters.redditSubcategory;
+      return nameOk && subcatOk;
+    });
+  }, [filters.search, filters.redditSubcategory]);
 
   const trackedCount = useMemo(
     () => Object.values(statuses).filter((e) => e.status !== "todo").length,
@@ -405,16 +492,6 @@ export default function DirectoriesApp() {
     transition: "all 0.1s",
   });
 
-  function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-      <div>
-        <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-          {label}
-        </label>
-        {children}
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -454,43 +531,69 @@ export default function DirectoriesApp() {
           />
         </FilterGroup>
 
-        <FilterGroup label="Min DA">
-          <div style={{ display: "flex", gap: "4px" }}>
-            {DA_FILTERS.map((f) => (
-              <button key={f.value} style={btn(filters.minDa === f.value)} onClick={() => setFilter("minDa", f.value)}>{f.label}</button>
-            ))}
-          </div>
-        </FilterGroup>
+        {filters.category !== "reddit" && (
+          <FilterGroup label="Min DA">
+            <div style={{ display: "flex", gap: "4px" }}>
+              {DA_FILTERS.map((f) => (
+                <button key={f.value} style={btn(filters.minDa === f.value)} onClick={() => setFilter("minDa", f.value)}>{f.label}</button>
+              ))}
+            </div>
+          </FilterGroup>
+        )}
 
-        <FilterGroup label="Type">
-          <div style={{ display: "flex", gap: "4px" }}>
-            {(["all", "directory", "launch"] as const).map((c) => (
-              <button key={c} style={btn(filters.category === c)} onClick={() => setFilter("category", c)}>
-                {c === "all" ? "All" : c === "directory" ? "Directories" : "Launch Sites"}
+        <FilterGroup label="View">
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+            {(["all", "directory", "launch", "reddit"] as const).map((c) => (
+              <button
+                key={c}
+                style={btn(filters.category === c)}
+                onClick={() => {
+                  setFilter("category", c);
+                  setFilter("redditSubcategory", "all");
+                }}
+              >
+                {c === "all" ? "All" : c === "directory" ? "Directories" : c === "launch" ? "Launch Sites" : "Reddit Targets"}
               </button>
             ))}
           </div>
         </FilterGroup>
 
-        <FilterGroup label="Cost">
-          <div style={{ display: "flex", gap: "4px" }}>
-            {(["all", "free", "freemium", "paid"] as const).map((t) => (
-              <button key={t} style={btn(filters.type === t)} onClick={() => setFilter("type", t)}>
-                {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </div>
-        </FilterGroup>
+        {filters.category === "reddit" ? (
+          <FilterGroup label="Category">
+            <select
+              value={filters.redditSubcategory}
+              onChange={(e) => setFilter("redditSubcategory", e.target.value)}
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "6px", padding: "6px 10px", color: "var(--text)", fontSize: "13px", outline: "none", cursor: "pointer" }}
+            >
+              <option value="all">All</option>
+              {REDDIT_SUBCATEGORIES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </FilterGroup>
+        ) : (
+          <>
+            <FilterGroup label="Cost">
+              <div style={{ display: "flex", gap: "4px" }}>
+                {(["all", "free", "freemium", "paid"] as const).map((t) => (
+                  <button key={t} style={btn(filters.type === t)} onClick={() => setFilter("type", t)}>
+                    {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </FilterGroup>
 
-        <FilterGroup label="My Status">
-          <div style={{ display: "flex", gap: "4px" }}>
-            {(["all", "todo", "applied", "listed", "rejected"] as const).map((s) => (
-              <button key={s} style={btn(filters.status === s)} onClick={() => setFilter("status", s)}>
-                {s === "all" ? "All" : STATUS_LABELS[s as SubmissionStatus]}
-              </button>
-            ))}
-          </div>
-        </FilterGroup>
+            <FilterGroup label="My Status">
+              <div style={{ display: "flex", gap: "4px" }}>
+                {(["all", "todo", "applied", "listed", "rejected"] as const).map((s) => (
+                  <button key={s} style={btn(filters.status === s)} onClick={() => setFilter("status", s)}>
+                    {s === "all" ? "All" : STATUS_LABELS[s as SubmissionStatus]}
+                  </button>
+                ))}
+              </div>
+            </FilterGroup>
+          </>
+        )}
 
       </div>
 
@@ -523,12 +626,16 @@ export default function DirectoriesApp() {
 
       {/* Table */}
       <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "10px", overflow: "hidden" }}>
-        <DirectoriesTable
-          data={allDirectories}
-          filterState={filters}
-          statuses={statuses}
-          setStatus={setStatus}
-        />
+        {filters.category === "reddit" ? (
+          <RedditTable data={filteredReddit} />
+        ) : (
+          <DirectoriesTable
+            data={allDirectories}
+            filterState={filters}
+            statuses={statuses}
+            setStatus={setStatus}
+          />
+        )}
       </div>
     </div>
   );
