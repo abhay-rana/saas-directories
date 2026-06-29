@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Directory, SubmissionStatus, StatusEntry, Project } from "@/lib/types";
+import { Directory, SubmissionStatus, StatusEntry, Project, KitData, KitCustomField } from "@/lib/types";
 import { allDirectories, saasDirectories, launchSites, redditCommunities } from "@/lib/directories";
 
 // ─── CSV Import helpers ───────────────────────────────────────────────────────
@@ -250,7 +250,17 @@ function useProjects() {
     saveProjects(projects.map((p) => (p.id === activeId ? updated : p)));
   }
 
-  return { projects, activeProject, createProject, switchProject, setStatus, setNote, mergeStatuses };
+  function updateKit(patch: Partial<KitData>) {
+    if (!activeProject) return;
+    const current = activeProject.kit ?? { fields: {}, customFields: [], images: {} };
+    const updated: Project = {
+      ...activeProject,
+      kit: { ...current, ...patch },
+    };
+    saveProjects(projects.map((p) => (p.id === activeId ? updated : p)));
+  }
+
+  return { projects, activeProject, createProject, switchProject, setStatus, setNote, mergeStatuses, updateKit };
 }
 
 // ─── CreateProjectModal ───────────────────────────────────────────────────────
@@ -669,15 +679,300 @@ function TypeBadge({ type }: { type: "free" | "freemium" | "paid" }) {
   );
 }
 
+// ─── Submission Kit ───────────────────────────────────────────────────────────
+
+const KIT_FIELD_ORDER = [
+  "productName","tagline","shortDescription","longDescription",
+  "websiteUrl","twitter","pricing","categories",
+];
+const KIT_FIELD_LABELS: Record<string, string> = {
+  productName: "Product Name",
+  tagline: "Tagline",
+  shortDescription: "Short Description",
+  longDescription: "Long Description",
+  websiteUrl: "Website URL",
+  twitter: "Twitter",
+  pricing: "Pricing",
+  categories: "Categories",
+};
+const KIT_FIELD_DEFAULTS: Record<string, string> = {
+  productName: "SaaS Directories",
+  tagline: "361+ places to submit your SaaS — sorted by Domain Authority",
+  shortDescription: "A free, open-source list of 361+ SaaS directories and launch sites, sorted by Domain Authority. Track your submission progress right in the browser — no account needed.",
+  longDescription: "SaaS Directories is a community-curated list of 361+ places to submit your SaaS product. Every entry includes DA score, link type, and cost. Filter by DA, type, or cost. Track which ones you've applied to, got listed on, or were rejected — all saved locally, no account required.",
+  websiteUrl: "https://marketing.abhayrana.com",
+  twitter: "@caprinae",
+  pricing: "Free",
+  categories: "Developer Tools · SaaS · Productivity",
+};
+
+const IMAGE_SLOTS = [
+  { key: "logo", label: "Logo", size: "512×512", w: 112, h: 112 },
+  { key: "icon", label: "App Icon", size: "256×256", w: 80, h: 80 },
+  { key: "screenshot1", label: "Screenshot 1", size: "1280×800", w: 192, h: 112 },
+  { key: "screenshot2", label: "Screenshot 2", size: "1280×800", w: 192, h: 112 },
+  { key: "screenshot3", label: "Screenshot 3", size: "1280×800", w: 192, h: 112 },
+] as const;
+
+function SubmissionKitView({
+  kit,
+  onUpdateKit,
+}: {
+  kit: KitData;
+  onUpdateKit: (patch: Partial<KitData>) => void;
+}) {
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const uploadSlotRef = useRef<string | null>(null);
+
+  function getVal(key: string) { return kit.fields[key] ?? KIT_FIELD_DEFAULTS[key] ?? ""; }
+
+  function copy(text: string, key: string) {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 1500);
+  }
+
+  function startEdit(key: string) {
+    setEditingKey(key);
+    setEditDraft(getVal(key));
+  }
+
+  function commitEdit(key: string) {
+    onUpdateKit({ fields: { ...kit.fields, [key]: editDraft } });
+    setEditingKey(null);
+  }
+
+  function deleteCustom(id: string) {
+    onUpdateKit({ customFields: kit.customFields.filter(f => f.id !== id) });
+  }
+
+  function saveCustomField() {
+    if (!newLabel.trim()) return;
+    const cf: KitCustomField = { id: makeId(), label: newLabel.trim(), value: newValue };
+    onUpdateKit({ customFields: [...kit.customFields, cf] });
+    setNewLabel(""); setNewValue("");
+  }
+
+  function handleImageClick(slotKey: string) {
+    uploadSlotRef.current = slotKey;
+    imgInputRef.current?.click();
+  }
+
+  function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const slot = uploadSlotRef.current;
+    if (!file || !slot) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      onUpdateKit({ images: { ...kit.images, [slot]: ev.target?.result as string } });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  const CopyBtn = ({ text, id }: { text: string; id: string }) => (
+    <button
+      onClick={() => copy(text, id)}
+      style={{
+        display: "flex", alignItems: "center", gap: 4,
+        background: copiedKey === id ? "var(--accent)" : "var(--green-light, #f0fdf4)",
+        color: copiedKey === id ? "#fff" : "var(--accent)",
+        border: "none", borderRadius: 5, padding: "5px 10px",
+        fontSize: 12, fontWeight: 500, cursor: "pointer", flexShrink: 0,
+        transition: "all 0.15s",
+      }}
+    >
+      {copiedKey === id ? "✓" : "⎘"} {copiedKey === id ? "Copied" : "Copy"}
+    </button>
+  );
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24, overflowY: "auto", height: "100%" }}>
+      <input ref={imgInputRef} type="file" accept="image/*" onChange={handleImageFile} style={{ display: "none" }} />
+
+      {/* Images section */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", letterSpacing: "0.8px", textTransform: "uppercase" }}>Images</span>
+          <span style={{ fontSize: 11, color: "var(--text-dim)" }}>PNG or JPG</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+          {IMAGE_SLOTS.slice(0, 2).map((slot) => (
+            <div key={slot.key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div
+                onClick={() => handleImageClick(slot.key)}
+                style={{
+                  width: slot.w, height: slot.h, borderRadius: 8,
+                  background: kit.images[slot.key] ? "transparent" : "var(--bg-hover)",
+                  border: "1px solid var(--border)", cursor: "pointer",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                  overflow: "hidden", flexShrink: 0,
+                }}
+              >
+                {kit.images[slot.key]
+                  ? <img src={kit.images[slot.key]} alt={slot.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <>
+                      <span style={{ fontSize: 20, color: "var(--text-dim)" }}>⬜</span>
+                      <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{slot.size}</span>
+                    </>
+                }
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: slot.w }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>{slot.label}</span>
+                <button onClick={() => handleImageClick(slot.key)} style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, fontWeight: 500, cursor: "pointer", padding: 0 }}>Upload</button>
+              </div>
+            </div>
+          ))}
+          <div style={{ width: 1, background: "var(--border)", height: 112, flexShrink: 0, alignSelf: "flex-start" }} />
+          {IMAGE_SLOTS.slice(2).map((slot) => (
+            <div key={slot.key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div
+                onClick={() => handleImageClick(slot.key)}
+                style={{
+                  width: slot.w, height: slot.h, borderRadius: 8,
+                  background: kit.images[slot.key] ? "transparent" : "var(--bg-hover)",
+                  border: "1px solid var(--border)", cursor: "pointer",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                  overflow: "hidden", flexShrink: 0,
+                }}
+              >
+                {kit.images[slot.key]
+                  ? <img src={kit.images[slot.key]} alt={slot.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <>
+                      <span style={{ fontSize: 18, color: "var(--text-dim)" }}>🖥</span>
+                      <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{slot.size}</span>
+                    </>
+                }
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: slot.w }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>{slot.label}</span>
+                <button onClick={() => handleImageClick(slot.key)} style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, fontWeight: 500, cursor: "pointer", padding: 0 }}>Upload</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Fields card */}
+      <div style={{ border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", overflow: "hidden" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", letterSpacing: "0.8px", textTransform: "uppercase" }}>Fields</span>
+          <button
+            onClick={() => { setNewLabel(""); setNewValue(""); setEditingKey("__new__"); }}
+            style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--green-light, #f0fdf4)", color: "var(--accent)", border: "none", borderRadius: 5, padding: "4px 10px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+          >
+            + Add field
+          </button>
+        </div>
+
+        {/* Default fields */}
+        {KIT_FIELD_ORDER.map((key, i) => {
+          const val = getVal(key);
+          const isLast = i === KIT_FIELD_ORDER.length - 1 && kit.customFields.length === 0 && editingKey !== "__new__";
+          return (
+            <div key={key} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "12px 16px", borderBottom: isLast ? "none" : "1px solid var(--border)" }}>
+              <div style={{ width: 148, flexShrink: 0, paddingTop: 1 }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)" }}>{KIT_FIELD_LABELS[key]}</span>
+              </div>
+              {editingKey === key ? (
+                <textarea
+                  autoFocus
+                  value={editDraft}
+                  onChange={e => setEditDraft(e.target.value)}
+                  onBlur={() => commitEdit(key)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitEdit(key); } if (e.key === "Escape") setEditingKey(null); }}
+                  style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.55, background: "var(--bg-hover)", border: "1px solid var(--accent)", borderRadius: 4, padding: "4px 6px", resize: "vertical", minHeight: 38, color: "var(--text)", fontFamily: "inherit" }}
+                />
+              ) : (
+                <div
+                  onClick={() => startEdit(key)}
+                  style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.55, color: "var(--text)", cursor: "text", wordBreak: "break-word" }}
+                >
+                  {val}
+                </div>
+              )}
+              <CopyBtn text={val} id={key} />
+            </div>
+          );
+        })}
+
+        {/* Custom fields */}
+        {kit.customFields.map((cf, i) => {
+          const isLast = i === kit.customFields.length - 1 && editingKey !== "__new__";
+          return (
+            <div key={cf.id} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "12px 16px", borderBottom: isLast ? "none" : "1px solid var(--border)" }}>
+              <div style={{ width: 148, flexShrink: 0, paddingTop: 1 }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)" }}>{cf.label}</span>
+              </div>
+              {editingKey === cf.id ? (
+                <textarea
+                  autoFocus
+                  value={editDraft}
+                  onChange={e => setEditDraft(e.target.value)}
+                  onBlur={() => { onUpdateKit({ customFields: kit.customFields.map(f => f.id === cf.id ? { ...f, value: editDraft } : f) }); setEditingKey(null); }}
+                  style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.55, background: "var(--bg-hover)", border: "1px solid var(--accent)", borderRadius: 4, padding: "4px 6px", resize: "vertical", minHeight: 38, color: "var(--text)", fontFamily: "inherit" }}
+                />
+              ) : (
+                <div onClick={() => { setEditingKey(cf.id); setEditDraft(cf.value); }} style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.55, color: cf.value ? "var(--text)" : "var(--text-dim)", cursor: "text", wordBreak: "break-word" }}>
+                  {cf.value || <em>Click to add value…</em>}
+                </div>
+              )}
+              <CopyBtn text={cf.value} id={cf.id} />
+              <button onClick={() => deleteCustom(cf.id)} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: 14, padding: "3px 4px", flexShrink: 0 }} title="Remove field">×</button>
+            </div>
+          );
+        })}
+
+        {/* New field row */}
+        {editingKey === "__new__" && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "14px 16px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, width: 148, flexShrink: 0 }}>
+              <input
+                autoFocus
+                value={newLabel}
+                onChange={e => setNewLabel(e.target.value)}
+                placeholder="e.g. 'Elevator Pitch'"
+                style={{ height: 30, borderRadius: 5, border: "1px solid var(--accent)", background: "var(--bg-hover)", padding: "0 10px", fontSize: 12, color: "var(--text)", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }}
+              />
+              <span style={{ fontSize: 11, color: "var(--text-dim)" }}>Field label</span>
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+              <textarea
+                value={newValue}
+                onChange={e => setNewValue(e.target.value)}
+                placeholder="Type your answer here…"
+                style={{ height: 60, borderRadius: 5, border: "1px solid var(--accent)", background: "var(--bg-hover)", padding: 10, fontSize: 13, resize: "vertical", color: "var(--text)", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }}
+              />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 11, color: "var(--text-dim)" }}>Answer is always a text area</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setEditingKey(null)} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 5, padding: "5px 12px", fontSize: 12, cursor: "pointer", color: "var(--text-secondary)" }}>Cancel</button>
+                  <button onClick={saveCustomField} style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 5, padding: "5px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>Save field</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function DirectoriesApp() {
-  const { projects, activeProject, createProject, switchProject, setStatus, setNote, mergeStatuses } =
+  const { projects, activeProject, createProject, switchProject, setStatus, setNote, mergeStatuses, updateKit } =
     useProjects();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
-  const [activeTab, setActiveTab] = useState<"all" | "directory" | "launch" | "reddit">(
+  const [activeTab, setActiveTab] = useState<"all" | "directory" | "launch" | "reddit" | "kit">(
     "all"
   );
   const [notesFor, setNotesFor] = useState<Directory | null>(null);
@@ -711,6 +1006,7 @@ export default function DirectoriesApp() {
     activeTab === "reddit" ? redditCommunities
     : activeTab === "directory" ? saasDirectories
     : activeTab === "launch" ? launchSites
+    : activeTab === "kit" ? []
     : allDirectories;
 
   // Status breakdown for current tab
@@ -822,7 +1118,7 @@ export default function DirectoriesApp() {
     return "var(--da-low)";
   };
 
-  function switchTab(tab: "all" | "directory" | "launch" | "reddit") {
+  function switchTab(tab: "all" | "directory" | "launch" | "reddit" | "kit") {
     setActiveTab(tab);
     setStatusFilter("all");
     setDaFilter(0);
@@ -1052,7 +1348,7 @@ export default function DirectoriesApp() {
           </div>
 
           {/* Status filter */}
-          {activeTab !== "reddit" && (
+          {activeTab !== "reddit" && activeTab !== "kit" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <SidebarLabel>Status</SidebarLabel>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1120,7 +1416,7 @@ export default function DirectoriesApp() {
           )}
 
           {/* DA filter */}
-          {activeTab !== "reddit" && (
+          {activeTab !== "reddit" && activeTab !== "kit" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <SidebarLabel>Min DA</SidebarLabel>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -1138,7 +1434,7 @@ export default function DirectoriesApp() {
           )}
 
           {/* Type filter */}
-          {activeTab !== "reddit" && (
+          {activeTab !== "reddit" && activeTab !== "kit" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <SidebarLabel>Cost</SidebarLabel>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -1155,6 +1451,39 @@ export default function DirectoriesApp() {
             </div>
           )}
 
+          {/* Kit: CONTENTS + Copy All */}
+          {activeTab === "kit" && (() => {
+            const kit = activeProject?.kit ?? { fields: {}, customFields: [], images: {} };
+            const fieldCount = KIT_FIELD_ORDER.length + kit.customFields.length;
+            const imgCount = Object.values(kit.images).filter(Boolean).length;
+            function copyAll() {
+              const lines = KIT_FIELD_ORDER.map(k => `${KIT_FIELD_LABELS[k]}: ${kit.fields[k] ?? KIT_FIELD_DEFAULTS[k]}`);
+              for (const cf of kit.customFields) lines.push(`${cf.label}: ${cf.value}`);
+              navigator.clipboard.writeText(lines.join("\n")).catch(() => {});
+            }
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-dim)", letterSpacing: "0.8px", textTransform: "uppercase", marginBottom: 4 }}>Contents</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", height: 30, borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>✎ Fields</span>
+                  <div style={{ flex: 1 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>{fieldCount}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", height: 30, borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>⬜ Images</span>
+                  <div style={{ flex: 1 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>{imgCount}</span>
+                </div>
+                <button
+                  onClick={copyAll}
+                  style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, padding: "8px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "100%" }}
+                >
+                  ⎘ Copy All Fields
+                </button>
+              </div>
+            );
+          })()}
+
           {/* Import / Export */}
           <input
             ref={fileInputRef}
@@ -1164,7 +1493,7 @@ export default function DirectoriesApp() {
             style={{ display: "none" }}
           />
 
-          {importNote && (
+          {activeTab !== "kit" && importNote && (
             <div
               style={{
                 background: "var(--bg-hover)",
@@ -1180,6 +1509,7 @@ export default function DirectoriesApp() {
             </div>
           )}
 
+          {activeTab !== "kit" && <>
           <button
             onClick={() => fileInputRef.current?.click()}
             style={{
@@ -1224,6 +1554,7 @@ export default function DirectoriesApp() {
           >
             ↓ Export CSV{trackedCount > 0 ? ` (${trackedCount})` : ""}
           </button>
+          </>}
         </div>
 
         {/* ── Main content ── */}
@@ -1257,6 +1588,7 @@ export default function DirectoriesApp() {
                   { key: "directory", label: "SaaS Only" },
                   { key: "launch", label: "Launch Sites" },
                   { key: "reddit", label: "Reddit Targets" },
+                  { key: "kit", label: "Submission Kit" },
                 ] as const
               ).map((tab) => (
                 <button
@@ -1287,26 +1619,37 @@ export default function DirectoriesApp() {
               ))}
             </div>
 
-            {/* Search */}
-            <input
-              type="text"
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: 6,
-                padding: "5px 10px",
-                color: "var(--text)",
-                fontSize: 13,
-                outline: "none",
-                width: 180,
-              }}
-            />
+            {/* Search (hidden on kit tab) */}
+            {activeTab === "kit"
+              ? <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Fill once, copy anywhere</span>
+              : <input
+                  type="text"
+                  placeholder="Search…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    padding: "5px 10px",
+                    color: "var(--text)",
+                    fontSize: 13,
+                    outline: "none",
+                    width: 180,
+                  }}
+                />
+            }
           </div>
 
-          {/* Table */}
+          {/* Kit view or Table */}
+          {activeTab === "kit" ? (
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              <SubmissionKitView
+                kit={activeProject?.kit ?? { fields: {}, customFields: [], images: {} }}
+                onUpdateKit={updateKit}
+              />
+            </div>
+          ) : (
           <div style={{ flex: 1, overflowY: "auto", overflowX: "auto" }}>
             {activeTab === "reddit" ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -1676,6 +2019,7 @@ export default function DirectoriesApp() {
               {activeTab === "reddit" ? "subreddits" : activeTab === "all" ? "directories (all unique)" : "directories"}
             </div>
           </div>
+          )}
         </div>
       </div>
     </>

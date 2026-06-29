@@ -23,12 +23,31 @@ export interface Directory {
   subcategory?: string;
 }
 
+export interface KitCustomField {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export interface KitData {
+  fields: Record<string, string>;
+  customFields: KitCustomField[];
+  images: {
+    logo?: string;
+    icon?: string;
+    screenshot1?: string;
+    screenshot2?: string;
+    screenshot3?: string;
+  };
+}
+
 export interface Project {
   id: string;
   name: string;
   color: string;
   statuses: Record<string, StatusEntry>;
   notes: Record<string, string>;
+  kit?: KitData;
   createdAt: string;
 }
 
