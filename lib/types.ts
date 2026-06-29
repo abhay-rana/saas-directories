@@ -4,7 +4,8 @@ export type DirectoryCategory = "directory" | "launch" | "reddit";
 
 export interface StatusEntry {
   status: SubmissionStatus;
-  updatedAt: string; // ISO timestamp
+  updatedAt: string;   // ISO — when current status was set
+  appliedAt?: string;  // ISO — frozen when first marked "applied", never overwritten
 }
 
 export interface Directory {
@@ -18,7 +19,17 @@ export interface Directory {
   dofollow: boolean;
   notes: string | null;
   category: DirectoryCategory;
+  isLaunchSite?: boolean;
   subcategory?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  color: string;
+  statuses: Record<string, StatusEntry>;
+  notes: Record<string, string>;
+  createdAt: string;
 }
 
 export interface FilterState {

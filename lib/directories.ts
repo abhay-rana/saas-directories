@@ -26,6 +26,7 @@ interface RawEntry {
   url: string;
   da: number | null;
   dofollow?: boolean;
+  isLaunchSite?: boolean;
 }
 
 function transform(entries: RawEntry[], prefix: string, category: DirectoryCategory): Directory[] {
@@ -42,6 +43,7 @@ function transform(entries: RawEntry[], prefix: string, category: DirectoryCateg
       dofollow: e.dofollow ?? true,
       notes,
       category,
+      isLaunchSite: e.isLaunchSite,
     };
   });
 }
@@ -51,30 +53,30 @@ const rawSaasDirectories: RawEntry[] = [
   { num: 2, name: "Reddit Niche Subreddits", url: "https://medium.com/stackademic/how-to-use-reddit-for-saas-marketing-2b0b64fef1e3", da: 95, dofollow: false },
   { num: 3, name: "TrustPilot", url: "https://www.trustpilot.com", da: 94 },
   { num: 4, name: "Better Business Bureau", url: "https://www.bbb.org", da: 91 },
-  { num: 5, name: "Product Hunt", url: "https://www.producthunt.com", da: 91 },
+  { num: 5, name: "Product Hunt", url: "https://www.producthunt.com", da: 91, isLaunchSite: true },
   { num: 6, name: "DEV Community", url: "https://dev.to", da: 90 },
-  { num: 7, name: "Hacker News", url: "https://news.ycombinator.com", da: 89 },
+  { num: 7, name: "Hacker News", url: "https://news.ycombinator.com", da: 89, isLaunchSite: true },
   { num: 8, name: "HackerNoon", url: "https://hackernoon.com", da: 88 },
   { num: 9, name: "TrustRadius", url: "http://trustradius.com", da: 84 },
-  { num: 10, name: "Dang AI (paid)", url: "https://dang.ai", da: 81 },
-  { num: 12, name: "Fazier.com", url: "https://fazier.com", da: 80 },
-  { num: 13, name: "Indiehackers", url: "https://www.indiehackers.com", da: 80 },
+  { num: 10, name: "Dang AI (paid)", url: "https://dang.ai", da: 81, isLaunchSite: true },
+  { num: 12, name: "Fazier.com", url: "https://fazier.com", da: 80, isLaunchSite: true },
+  { num: 13, name: "Indiehackers", url: "https://www.indiehackers.com", da: 80, isLaunchSite: true },
   { num: 14, name: "AlternativeTo", url: "http://alternativeto.net", da: 79 },
   { num: 15, name: "Twelve.Tools", url: "https://twelve.tools", da: 79 },
-  { num: 16, name: "Turbo0 (high-quality backlink)", url: "https://turbo0.com", da: 79 },
+  { num: 16, name: "Turbo0 (high-quality backlink)", url: "https://turbo0.com", da: 79, isLaunchSite: true },
   { num: 17, name: "EU-Startups Database", url: "https://www.eu-startups.com/directory", da: 77 },
-  { num: 18, name: "There's an AI for that!", url: "https://theresanaiforthat.com", da: 77 },
-  { num: 19, name: "SaaSHub", url: "https://www.saashub.com", da: 76 },
+  { num: 18, name: "There's an AI for that!", url: "https://theresanaiforthat.com", da: 77, isLaunchSite: true },
+  { num: 19, name: "SaaSHub", url: "https://www.saashub.com", da: 76, isLaunchSite: true },
   { num: 20, name: "ToolPilot AI", url: "https://www.toolpilot.ai", da: 76 },
-  { num: 21, name: "Peerlist (high traffic)", url: "https://peerlist.io/r4fken/signup", da: 76 },
+  { num: 21, name: "Peerlist (high traffic)", url: "https://peerlist.io/r4fken/signup", da: 76, isLaunchSite: true },
   { num: 22, name: "Startup Fame", url: "https://startupfa.me", da: 76 },
   { num: 23, name: "Findly", url: "https://findly.tools", da: 76 },
   { num: 24, name: "Starter Story", url: "https://www.starterstory.com/share", da: 75 },
   { num: 25, name: "Crunchbase", url: "https://crunchbase.com", da: 75 },
   { num: 26, name: "Show Me Best AI", url: "https://www.showmebest.ai", da: 75 },
-  { num: 27, name: "Uneed (the next ProductHunt, must-have)", url: "https://www.uneed.best?atp=linkto&ref=linkto", da: 74 },
+  { num: 27, name: "Uneed (the next ProductHunt, must-have)", url: "https://www.uneed.best?atp=linkto&ref=linkto", da: 74, isLaunchSite: true },
   { num: 28, name: "SaaSWorthy", url: "https://www.saasworthy.com", da: 74 },
-  { num: 29, name: "Betalist", url: "https://betalist.com", da: 74 },
+  { num: 29, name: "Betalist", url: "https://betalist.com", da: 74, isLaunchSite: true },
   { num: 30, name: "Alternative Me", url: "https://alternative.me", da: 73 },
   { num: 31, name: "Startup Inspire", url: "http://startupinspire.com/startups", da: 72 },
   { num: 32, name: "AllTopStartups", url: "https://alltopstartups.com", da: 72 },
@@ -346,17 +348,7 @@ const rawSaasDirectories: RawEntry[] = [
 ];
 
 const rawLaunchSites: RawEntry[] = [
-  { num: 1, name: "Product Hunt (the GOAT)", url: "https://www.producthunt.com", da: 91 },
-  { num: 2, name: "Hacker News", url: "https://news.ycombinator.com/news", da: 91 },
-  { num: 3, name: "Fazier", url: "https://fazier.com", da: 81 },
-  { num: 4, name: "Dang.ai (paid)", url: "https://dang.ai", da: 81 },
-  { num: 5, name: "Indie Hackers", url: "https://www.indiehackers.com/products", da: 80 },
-  { num: 6, name: "Turbo0 (high-value backlink)", url: "https://turbo0.com", da: 79 },
-  { num: 7, name: "SaaSHub", url: "https://www.saashub.com", da: 77 },
-  { num: 8, name: "There's An AI For That", url: "https://theresanaiforthat.com", da: 77 },
-  { num: 9, name: "Peerlist (high traffic)", url: "https://peerlist.io/r4fken/signup", da: 76 },
-  { num: 10, name: "Betalist", url: "https://betalist.com", da: 75 },
-  { num: 11, name: "Uneed (the next ProductHunt, more popular every day)", url: "https://www.uneed.best?atp=linkto&ref=linkto", da: 74 },
+  // num 1-11 are duplicates of saas entries — they are marked isLaunchSite:true there instead
   { num: 12, name: "LaunchIgniter", url: "https://launchigniter.com", da: 74 },
   { num: 13, name: "PeerPush (high traffic)", url: "https://peerpush.net?atp=rafv", da: 73 },
   { num: 14, name: "SaaS Adviser", url: "https://www.saasadviser.co", da: 72 },
@@ -606,11 +598,12 @@ export const redditCommunities: Directory[] = rawRedditCommunities.map((r, i) =>
   subcategory: r.subcategory,
 }));
 
-export const allDirectories: Directory[] = [
-  ...transform(rawSaasDirectories, "saas", "directory"),
-  ...transform(rawLaunchSites, "launch", "launch"),
-];
+// saas entries are the single source of truth; some are also launch sites (isLaunchSite: true)
+const _saas = transform(rawSaasDirectories, "saas", "directory");
+const _pureLaunch = transform(rawLaunchSites, "launch", "launch");
 
-// kept for any code still referencing these
-export const saasDirectories = allDirectories.filter(d => d.category === "directory");
-export const launchSites = allDirectories.filter(d => d.category === "launch");
+export const saasDirectories = _saas;
+// launch sites = dual-category saas entries + pure launch-only entries (no duplicates)
+export const launchSites: Directory[] = [..._saas.filter(d => d.isLaunchSite), ..._pureLaunch];
+// all unique directories (no duplicates)
+export const allDirectories: Directory[] = [..._saas, ..._pureLaunch];
